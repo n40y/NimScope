@@ -1,0 +1,11 @@
+{
+  "id": "aws-imds-leak",
+  "protocol": "http",
+  "port": 80,
+  "action": "check-acl",
+  "info": {
+    "name": "AWS IMDSv1 Metadata Leak",
+    "description": "Vérifie si l'endpoint de métadonnées AWS est exposé sans authentification (IMDSv1).",
+    "severity": "CRITICAL"
+  }
+}

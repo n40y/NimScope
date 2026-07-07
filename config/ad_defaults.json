@@ -1,0 +1,12 @@
+{
+  "ad_ports": {
+    "ldap": 389,
+    "ldaps": 636,
+    "smb": 445,
+    "kerberos": 88,
+    "winrm": 5985
+  },
+  "default_queries": {
+    "naming_contexts": "(objectClass=*)"
+  }
+}

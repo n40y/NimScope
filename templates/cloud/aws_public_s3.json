@@ -1,0 +1,12 @@
+{
+  "id": "aws-public-s3",
+  "info": {
+    "name": "AWS Public S3 Bucket",
+    "description": "Vérifie si un bucket S3 est exposé publiquement.",
+    "severity": "MEDIUM",
+    "author": "yoann"
+  },
+  "protocol": "http",
+  "action": "check-acl",
+  "port": 443
+}

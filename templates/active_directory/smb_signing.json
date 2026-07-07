@@ -1,0 +1,12 @@
+{
+  "id": "smb-signing-disabled",
+  "info": {
+    "name": "SMB Signing Not Required",
+    "description": "Vérifie si la signature des paquets SMB est obligatoire sur la cible pour empêcher les attaques par relais.",
+    "severity": "MEDIUM",
+    "author": "yoann"
+  },
+  "protocol": "smb",
+  "action": "check-signing",
+  "port": 445
+}

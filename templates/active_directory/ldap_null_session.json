@@ -1,0 +1,15 @@
+{
+  "id": "ldap-null-session",
+  "info": {
+    "name": "Active Directory Null Session LDAP",
+    "description": "Vérifie si le contrôleur de domaine autorise l'énumération anonyme via LDAP.",
+    "severity": "HIGH",
+    "author": "yoann"
+  },
+  "protocol": "ldap",
+  "action": "anonymous-bind",
+  "port": 389,
+  "matchers": {
+    "status": "SUCCESS"
+  }
+}
