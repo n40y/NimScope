@@ -2,9 +2,9 @@
   "id": "aws-public-s3",
   "info": {
     "name": "AWS Public S3 Bucket",
-    "description": "Vérifie si un bucket S3 est exposé publiquement.",
+    "description": "Checks if an S3 bucket is publicly exposed.",
     "severity": "MEDIUM",
-    "author": "yoann"
+    "author": "n40y"
   },
   "protocol": "http",
   "action": "check-acl",
