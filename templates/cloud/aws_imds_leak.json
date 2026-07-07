@@ -5,7 +5,7 @@
   "action": "check-acl",
   "info": {
     "name": "AWS IMDSv1 Metadata Leak",
-    "description": "Vérifie si l'endpoint de métadonnées AWS est exposé sans authentification (IMDSv1).",
+    "description": "Check if the AWS metadata endpoint is exposed without authentication (IMDSv1).",
     "severity": "CRITICAL"
   }
 }
