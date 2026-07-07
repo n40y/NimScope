@@ -2,9 +2,9 @@
   "id": "ldap-null-session",
   "info": {
     "name": "Active Directory Null Session LDAP",
-    "description": "Vérifie si le contrôleur de domaine autorise l'énumération anonyme via LDAP.",
+    "description": "Checks if the domain controller allows anonymous enumeration via LDAP.",
     "severity": "HIGH",
-    "author": "yoann"
+    "author": "n40y"
   },
   "protocol": "ldap",
   "action": "anonymous-bind",
