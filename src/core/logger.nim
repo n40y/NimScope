@@ -1,26 +1,24 @@
-import std/[terminal, times]
+# src/core/logger.nim
 
-# Génère un timestamp propre : [17:45:12]
+import std/times
+
 proc getTimestamp(): string =
-  return "[" & now().format("HH:mm:ss") & "] "
+  now().format("HH:mm:ss")
 
-# Info générique (Bleu / Cyan)
 proc logInfo*(msg: string) =
-  stdout.styledWrite(fgCyan, getTimestamp(), fgBlue, "[*] ", resetStyle, msg, "\n")
+  echo "[" & getTimestamp() & "] [*] " & msg
 
-# Alerte / Vulnérabilité trouvée (Vert flashy + tag Pwned)
-proc logSuccess*(target: string, msg: string) =
-  stdout.styledWrite(fgCyan, getTimestamp(), fgGreen, "[+] ", bgGreen, fgBlack, " PWNED ", resetStyle, " ", fgGreen, target, resetStyle, " -> ", msg, "\n")
+proc logSuccess*(target, msg: string) =
+  # Green terminal color code \x1B[32m
+  echo "\x1B[32m[" & getTimestamp() & "] [+] " & target & " -> " & msg & "\x1B[0m"
 
-# Échec / Non vulnérable ou accès refusé (Blanc/Gris standard)
-proc logFail*(target: string, msg: string) =
-  stdout.styledWrite(fgCyan, getTimestamp(), fgRed, "[-] ", resetStyle, fgWhite, target, " -> ", msg, "\n")
+proc logFail*(target, msg: string) =
+  # Regular output for non-vulnerable targets
+  echo "[" & getTimestamp() & "] [-] " & target & " -> " & msg
 
-# Erreur critique du script (Rouge vif)
 proc logError*(msg: string) =
-  stderr.styledWrite(fgRed, styleBright, "[!] ERREUR: ", resetStyle, msg, "\n")
+  echo "\x1B[31m[" & getTimestamp() & "] [!] ERROR: " & msg & "\x1B[0m"
 
-# Joli Banner de démarrage
 proc displayBanner*() =
   let banner = """
 █   █ ███ █   █  ████  ███   ███  ████  █████   
@@ -29,7 +27,7 @@ proc displayBanner*() =
 █░░██░░█░░█░░░█░░ ░░█ █░░   █░░ █░█░░░░ █░░░░   
 █░░ █░███░█░░ █░████░░ ███   ███ ░█░░░░░█████░  
  ░░  ░░░░░ ░░  ░░░░░░ ░ ░░░   ░░░ ░░░    ░░░░░  v0.1 
-  ░   ░ ░░░ ░   ░ ░░░░   ░░░   ░░░  ░     ░░░░░       """
+  ░   ░ ░░░ ░   ░ ░░░░   ░░░    ░░░  ░     ░░░░░       """
   stdout.styledWrite(fgMagenta, styleBright, banner, "\n", resetStyle)
-  stdout.styledWrite(fgWhite, "  -> Framework d'audit Cloud & Active Directory\n", resetStyle) # Modifié ici !
+  stdout.styledWrite(fgWhite, "  -> Cloud & Active Directory Audit Framework\n", resetStyle)
   echo "---------------------------------------------------------\n"
