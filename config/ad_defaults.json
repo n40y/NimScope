@@ -6,7 +6,7 @@
     "kerberos": 88,
     "winrm": 5985
   },
-  "default_queries": {
-    "naming_contexts": "(objectClass=*)"
+  "ldap_queries": {
+    "base_dn": "DC=domain,DC=local"
   }
 }
