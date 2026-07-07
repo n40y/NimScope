@@ -3,7 +3,6 @@
 import std/[net]
 import winim
 
-
 const smbNegotiatePacket: array[90, byte] = [
   byte 0x00, 0x00, 0x00, 0x56, 
   0xFE, 0x53, 0x4D, 0x42,       
@@ -23,7 +22,7 @@ const smbNegotiatePacket: array[90, byte] = [
   0x01, 0x00,                   
   0x01, 0x00,                   
   0x00, 0x00,                   
-  0x7F, 0x00, 0x00, 0x00,       
+  0x7F, 0x00, 0x00, 0x00,        
   0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
   0x02, 0x02                    
@@ -58,9 +57,7 @@ proc checkSmbSigning*(target: string, port: int = 445): string =
     socket.close()
     return "NETWORK_ERROR"
 
-
-
-# Structure nécessaire pour NetServerGetInfo
+# Structure required for NetServerGetInfo
 type
   SERVER_INFO_101* = object
     sv101_platform_id*: DWORD
@@ -70,7 +67,7 @@ type
     sv101_type*: DWORD
     sv101_comment*: LPWSTR
 
-# Déclaration de la fonction native de netapi32.dll
+# Native function declaration from netapi32.dll
 proc NetServerGetInfo*(servername: LMSTR, level: DWORD, bufptr: ptr LPBYTE): NET_API_STATUS 
   {.stdcall, dynlib: "netapi32", importc: "NetServerGetInfo".}
 proc NetApiBufferFree*(Buffer: LPVOID): NET_API_STATUS 
@@ -78,13 +75,13 @@ proc NetApiBufferFree*(Buffer: LPVOID): NET_API_STATUS
 
 proc getRemoteOsVersion*(target: string): string =
   var buf: LPBYTE = nil
-  # Transformation de la string Nim en Wide String pour l'API Windows
+  # Convert Nim string to Wide String for the Windows API
   let wTarget = +$target 
   
   let res = NetServerGetInfo(wTarget, 101, addr buf)
   if res == 0 and buf != nil:
     let info = cast[ptr SERVER_INFO_101](buf)
-    # Extraction de la version majeure/mineure
+    # Extract major/minor version
     let major = info.sv101_version_major
     let minor = info.sv101_version_minor
     
