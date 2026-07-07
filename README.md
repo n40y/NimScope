@@ -30,6 +30,7 @@ NimScope is a fast, lightweight, and fully asynchronous audit and reconnaissance
 
 ---
 
+
 ## Project Structure
 
 ```text
@@ -68,21 +69,19 @@ NimScope/
 
 The project relies on native Windows API calls (``winim``) for advanced AD reconnaissance features. Full compilation of AD modules is therefore optimized for Windows.
 
+
 #### 1. Windows (Native Environment)
 
-Ensure OpenSSL is installed (or corresponding DLLs are in your PATH) for HTTPS support:
-
+Ensure OpenSSL is installed (or corresponding DLLs are in your PATH) for HTTPS support :
 ```powershell
 nim c -d:release -d:ssl src/nimscope.nim
 ```
-
 The generated binary will be located at ``src/nimscope.exe``.
 
 
 #### 2. Linux (Debian/Ubuntu)
 
 Note: Specific WinAPI features (like OS retrieval via SMB) will be limited or require adaptations.
-
 ```bash
 sudo apt install nim openssl libssl-dev
 
@@ -98,28 +97,27 @@ nim c -d:release -d:ssl src/nimscope.nim
 ```
 
 
+
 ## Usage
 
 NimScope exposes a self-documenting Command Line Interface (CLI) thanks to ``cligen``.
 
+
 ### Active Directory Mode
 
 * Run all configured AD templates against a target:
-
 ```powershell
 .\nimscope ad --target "192.168.1.10"
 ```
 
 * Run a specific template via its ID:
-
 ```powershell
 .\nimscope ad --target "192.168.1.10" --template_id "smb-signing-disabled"
 ```
 
 ### Cloud Mode
 
-Check the existence and exposure of an S3 bucket:
-
+* Check the existence and exposure of an S3 bucket:
 ```powershell
 .\nimscope cloud --target "mon-bucket-cible"
 ```
@@ -127,9 +125,7 @@ Check the existence and exposure of an S3 bucket:
 ### Available Global Options
 
 * ``--template_id`` : Specifies a precise template ID to execute instead of running all of them (``all`` by default).
-
 * ``--silent``      : Hides the ASCII banner on startup.
-
 * ``--help``        : Displays help and arguments for the subcommand.
 
 
