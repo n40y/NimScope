@@ -1,6 +1,6 @@
 # src/core/loader.nim
 
-import std/[os, strutils, json]
+import std/[os, json]
 
 type
   TemplateInfo* = object
@@ -10,23 +10,17 @@ type
 
   Template* = object
     id*: string
-    info*: TemplateInfo
     protocol*: string
-    action*: string
     port*: int
+    action*: string
+    info*: TemplateInfo
+
+proc discoverTemplates*(dir: string): seq[string] =
+  result = @[]
+  for file in walkDirRec(dir):
+    if file.endsWith(".json"):
+      result.add(file)
 
 proc loadTemplate*(path: string): Template =
-  let node = parseFile(path)
-  # On désérialise le JSON directement dans notre objet Nim
-  return node.to(Template)
-
-proc discoverTemplates*(baseDir: string = "templates"): seq[string] =
-  result = @[]
-  if not dirExists(baseDir):
-    createDir(baseDir)
-    return
-  
-  # On parcourt récursivement pour trouver tous les fichiers JSON
-  for path in walkDirRec(baseDir):
-    if path.endsWith(".json"):
-      result.add(path)
+  let jsonNode = parseFile(path)
+  result = to(jsonNode, Template)
