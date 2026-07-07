@@ -140,4 +140,6 @@ Un template est un simple fichier JSON stocké dans ``templates/``. Exemple pour
     "severity": "HIGH"
   }
 }
+
 ```
+
