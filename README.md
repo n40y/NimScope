@@ -1,8 +1,8 @@
 # NimScope v0.1
 
-NimScope est un framework d'audit et de reconnaissance rapide, léger et entièrement asynchrone, conçu pour évaluer la sécurité des environnements Active Directory et des infrastructures Cloud (AWS). Développé en Nim, il utilise une architecture modulaire pilotée par des templates JSON, permettant d'exécuter des vérifications simultanées sans la lourdeur de threads système dédiés.
+NimScope is a fast, lightweight, and fully asynchronous audit and reconnaissance framework designed to assess the security of Active Directory environments and Cloud infrastructures (AWS). Developed in Nim, it utilizes a modular architecture driven by JSON templates, allowing concurrent checks to run without the overhead of dedicated system threads.
 
-### Bannière
+### Banner
 
 ```bash
 █   █ ███ █   █  ████  ███   ███  ████  █████   
@@ -14,66 +14,74 @@ NimScope est un framework d'audit et de reconnaissance rapide, léger et entièr
   ░   ░ ░░░ ░   ░ ░░░   ░░░   ░░░  ░     ░░░░░
 ```
 
-## Fonctionnalités
+## Features
 
-- **Moteur Asynchrone :** Basé sur `std/asyncdispatch` pour une gestion optimale des I/O réseau en parallèle.
-- **Audit Active Directory :** - Test de *Null Session* LDAP.
-  - Vérification de l'obligation de signature SMB (*SMB Signing*).
-  - Reconnaissance native de la version de l'OS via l'API Windows (`netapi32`).
-- **Audit Cloud :** Évaluation asynchrone de l'exposition des ressources Cloud (ex: ACLs de buckets AWS S3).
-- **Extensible :** Ajout de signatures et de tests via de simples fichiers de configuration JSON.
+- *Asynchronous Engine*: Powered by ``std/asyncdispatch`` for optimal concurrent handling of network I/O.
+
+- *Active Directory Audit*: - LDAP Null Session testing.
+
+  - SMB Signing requirement validation.
+
+  - Native OS version discovery via the Windows API (``netapi32``).
+
+- *Cloud Audit*: Asynchronous evaluation of Cloud resource exposure (e.g., AWS S3 bucket ACLs).
+
+- *Extensible*: Easily add new signatures and tests via simple JSON configuration files.
 
 ---
 
-## Structure du Projet
+## Project Structure
 
 ```text
 NimScope/
 ├── config/
-│   └── ad_defaults.json        # Configuration globale des ports et requêtes AD
+│   └── ad_defaults.json        # Global configuration for AD ports and queries
 ├── src/
 │   ├── core/
-│   │   ├── config_loader.nim   # Chargeur de la configuration JSON globale
-│   │   ├── executor.nim        # Moteur d'exécution asynchrone des templates
-│   │   ├── loader.nim          # Parseur de templates JSON
-│   │   └── logger.nim          # Formatage des sorties (Success, Fail, Info)
+│   │   ├── config_loader.nim   # Global JSON configuration loader
+│   │   ├── executor.nim        # Asynchronous template execution engine
+│   │   ├── loader.nim          # JSON template parser
+│   │   └── logger.nim          # Output formatting (Success, Fail, Info)
 │   ├── protocols/
-│   │   ├── ldap.nim            # Logique de communication LDAP (WinAPI)
-│   │   └── smb.nim             # Paquets bruts SMB et appels NetServerGetInfo
-│   └── nimscope.nim            # Point d'entrée principal (CLI avec Cligen)
+│   │   ├── ldap.nim            # LDAP communication logic (WinAPI)
+│   │   └── smb.nim             # Raw SMB packets and NetServerGetInfo calls
+│   └── nimscope.nim            # Main entrypoint (CLI via Cligen)
 └── templates/
-    ├── active_directory/       # Fichiers JSON de signatures AD
+    ├── active_directory/       # AD JSON signature files
     │   ├── ldap_null_session.json
     │   └── smb_signing_disabled.json
-    └── cloud/                  # Fichiers JSON de signatures Cloud
+    └── cloud/                  # Cloud JSON signature files
+        └── aws_imds_leak.json
         └── aws_public_s3.json
 ```        
 
 ## Installation
 
-### Prérequis
+### Prerequisites
 
-* Nim (version 2.2.0 ou supérieure)
+- Nim (version 2.2.0 or higher)
 
-* OpenSSL (nécessaire pour les requêtes HTTPS du module Cloud)
+- OpenSSL (required for HTTPS requests in the Cloud module)
 
-### Compilation multi-OS
 
-Le projet utilise des appels natifs à l'API Windows (``winim``) pour certaines fonctionnalités de reconnaissance AD avancées. La compilation complète des modules AD est donc optimisée pour Windows.
+### Cross-OS Compilation
 
-#### 1. Windows (Environnement natif)
+The project relies on native Windows API calls (``winim``) for advanced AD reconnaissance features. Full compilation of AD modules is therefore optimized for Windows.
 
-Assure-toi d'avoir OpenSSL installé (ou les DLLs correspondantes dans ton PATH) pour le support HTTPS :
+#### 1. Windows (Native Environment)
+
+Ensure OpenSSL is installed (or corresponding DLLs are in your PATH) for HTTPS support:
 
 ```powershell
 nim c -d:release -d:ssl src/nimscope.nim
 ```
 
-Le binaire généré se trouvera dans ``src/nimscope.exe``.
+The generated binary will be located at ``src/nimscope.exe``.
+
 
 #### 2. Linux (Debian/Ubuntu)
 
-Note : Les fonctionnalités spécifiques à la WinAPI (comme la récupération de l'OS via SMB) seront limitées ou nécessiteront des adaptations.
+Note: Specific WinAPI features (like OS retrieval via SMB) will be limited or require adaptations.
 
 ```bash
 sudo apt install nim openssl libssl-dev
@@ -89,45 +97,49 @@ brew install nim openssl
 nim c -d:release -d:ssl src/nimscope.nim
 ```
 
-## Utilisation
 
-NimScope expose une interface en ligne de commande (CLI) auto-documentée grâce à ``cligen``.
+## Usage
 
-### Mode Active Directory
+NimScope exposes a self-documenting Command Line Interface (CLI) thanks to ``cligen``.
 
-- Lance tous les templates AD configurés contre une cible :
+### Active Directory Mode
+
+* Run all configured AD templates against a target:
 
 ```powershell
 .\nimscope ad --target "192.168.1.10"
 ```
 
-- Lancer un template spécifique via son ID :
+* Run a specific template via its ID:
 
 ```powershell
 .\nimscope ad --target "192.168.1.10" --template_id "smb-signing-disabled"
 ```
 
-### Mode Cloud
+### Cloud Mode
 
-Vérifier l'existence et l'exposition d'un bucket S3 :
+Check the existence and exposure of an S3 bucket:
 
 ```powershell
 .\nimscope cloud --target "mon-bucket-cible"
 ```
 
-### Options globales disponibles
+### Available Global Options
 
-*    `--template_id` : Spécifie un ID de template précis à exécuter au lieu de tous les lancer (`all` par défaut).
+* ``--template_id`` : Specifies a precise template ID to execute instead of running all of them (``all`` by default).
 
-*    ``--silent``      : Masque la bannière ASCII au démarrage.
+* ``--silent``      : Hides the ASCII banner on startup.
 
-*    ``--help``        : Affiche l'aide et les arguments de la sous-commande.
+* ``--help``        : Displays help and arguments for the subcommand.
 
 
-## Configuration des Templates (Exemple)
+## Template Configuration (Example)
 
-Un template est un simple fichier JSON stocké dans ``templates/``. Exemple pour ``aws_public_s3.json`` :
+A template is a simple JSON file stored in ``templates/``. 
+Examples :
 
+---
+### 1. ``templates/cloud/aws_public_s3.json``
 ```json
 {
   "id": "aws-public-s3",
@@ -136,10 +148,46 @@ Un template est un simple fichier JSON stocké dans ``templates/``. Exemple pour
   "action": "check-acl",
   "info": {
     "name": "AWS Public S3 Bucket",
-    "description": "Vérifie si le bucket S3 est configuré en accès public ou listable.",
+    "description": "Checks if the S3 bucket is configured with public or listable access.",
     "severity": "HIGH"
   }
 }
+```
 
+---
+### 2. `templates/active_directory/ldap_null_session.json`
+```json
+{
+  "id": "ldap-null-session",
+  "info": {
+    "name": "Active Directory Null Session LDAP",
+    "description": "Checks if the domain controller allows anonymous enumeration via LDAP.",
+    "severity": "HIGH",
+    "author": "n40y"
+  },
+  "protocol": "ldap",
+  "action": "anonymous-bind",
+  "port": 389,
+  "matchers": {
+    "status": "SUCCESS"
+  }
+}
+```
+
+---
+### 3. `templates/active_directory/smb-signing.json`
+```json
+{
+  "id": "smb-signing-disabled",
+  "info": {
+    "name": "SMB Signing Not Required",
+    "description": "Checks if SMB packet signing is required on the target to prevent relay attacks.",
+    "severity": "MEDIUM",
+    "author": "n40y"
+  },
+  "protocol": "smb",
+  "action": "check-signing",
+  "port": 445
+}
 ```
 
