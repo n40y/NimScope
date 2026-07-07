@@ -49,7 +49,7 @@ NimScope/
 └── templates/
     ├── active_directory/       # AD JSON signature files
     │   ├── ldap_null_session.json
-    │   └── smb_signing_disabled.json
+    │   └── smb_signing.json
     └── cloud/                  # Cloud JSON signature files
         └── aws_imds_leak.json
         └── aws_public_s3.json
