@@ -10,12 +10,11 @@ proc runTemplateAsync*(tmp: Template, target: string, cfg: AdConfig) {.async.} =
   of "ldap":
     if tmp.action == "anonymous-bind":
       let port = if tmp.port != 0: tmp.port else: cfg.ad_ports.ldap
-      # Les appels aux protocoles bloquants ou DLL s'exécutent normalement
       let res = tryAnonymousBind(target, port)
       if res == "SUCCESS":
-        logSuccess(target, "[" & tmp.id & "] " & tmp.info.name & " - Vulnérabilité confirmée !")
+        logSuccess(target, "[" & tmp.id & "] " & tmp.info.name & " - VULNERABILITY CONFIRMED!")
       else:
-        logFail(target, "[" & tmp.id & "] non vulnérable (" & res & ")")
+        logFail(target, "[" & tmp.id & "] not vulnerable (" & res & ")")
   
   of "smb":
     if tmp.action == "check-signing":
@@ -23,37 +22,35 @@ proc runTemplateAsync*(tmp: Template, target: string, cfg: AdConfig) {.async.} =
       let res = checkSmbSigning(target, port)
       let osVer = getRemoteOsVersion(target)
       if res == "NOT_REQUIRED":
-        logSuccess(target, "[" & tmp.id & "] " & tmp.info.name & " - OS: " & osVer & " - SIGNATURE NON OBLIGATOIRE")
+        logSuccess(target, "[" & tmp.id & "] " & tmp.info.name & " - OS: " & osVer & " - SIGNING NOT REQUIRED")
       elif res == "REQUIRED":
-        logFail(target, "[" & tmp.id & "] non vulnérable (Signature obligatoire) - OS: " & osVer)
+        logFail(target, "[" & tmp.id & "] not vulnerable (Signing required) - OS: " & osVer)
       else:
-        logFail(target, "[" & tmp.id & "] impossible de vérifier (" & res & ") - OS: " & osVer)
+        logFail(target, "[" & tmp.id & "] unable to verify (" & res & ") - OS: " & osVer)
   
   of "http":
-    # Nouveau client HTTP Asynchrone
     let client = newAsyncHttpClient(userAgent = "NimScope/0.1")
     let url = if target.startsWith("http"): 
-            target 
-          elif target == "169.254.169.254": 
-            "http://" & target & "/latest/meta-data/"
-          else: 
-            "https://" & target & ".s3.amazonaws.com"
+                target 
+              elif target == "169.254.169.254": 
+                "http://" & target & "/latest/meta-data/"
+              else: 
+                "https://" & target & ".s3.amazonaws.com"
     
     try:
-      logInfo("Requête HTTP GET asynchrone vers : " & url)
-      # 'await' cède la main aux autres templates pendant que le réseau répond
+      logInfo("Asynchronous HTTP GET request to: " & url)
       let response = await client.get(url)
       
       if tmp.action == "check-acl":
         if response.code == Http200:
-          logSuccess(target, "[" & tmp.id & "] " & tmp.info.name & " - BUCKET PUBLIC OU LISTABLE (Code 200)")
+          logSuccess(target, "[" & tmp.id & "] " & tmp.info.name & " - PUBLIC OR LISTABLE BUCKET (Code 200)")
         else:
-          logFail(target, "[" & tmp.id & "] non vulnérable (Code reçu : " & $response.code & ")")
+          logFail(target, "[" & tmp.id & "] not vulnerable (Received code: " & $response.code & ")")
           
     except CatchableError as e:
-      logFail(target, "[" & tmp.id & "] Erreur de connexion : " & e.msg)
+      logFail(target, "[" & tmp.id & "] Connection error: " & e.msg)
     finally:
       client.close()
     
   else:
-    logError("Protocole non supporté : " & tmp.protocol)
+    logError("Unsupported protocol: " & tmp.protocol)
