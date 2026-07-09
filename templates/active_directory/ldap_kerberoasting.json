@@ -1,0 +1,12 @@
+{
+  "id": "ldap-enum-spns",
+  "info": {
+    "name": "LDAP Kerberoastable Accounts Enumeration",
+    "description": "Search for user accounts with a Service Principal Name (SPN) via Null Session.",
+    "severity": "HIGH",
+    "author": "n40y"
+  },
+  "protocol": "ldap",
+  "action": "query-spns",
+  "port": 389
+}
