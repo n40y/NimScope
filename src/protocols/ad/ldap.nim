@@ -1,13 +1,15 @@
 # src/protocols/ad/ldap.nim
 ##
 ## Implémentation LDAPv3 pure Nim (aucune dépendance winim => multiplateforme).
-## On n'implémente que le sous-ensemble de BER/ASN.1 nécessaire au bind anonyme :
-##   LDAPMessage ::= SEQUENCE { messageID INTEGER, protocolOp CHOICE {...} }
-##   BindRequest ::= [APPLICATION 0] SEQUENCE { version INTEGER, name OCTET STRING,
-##                                               authentication [0] OCTET STRING (simple) }
+## On n'implémente que le sous-ensemble de BER/ASN.1 nécessaire aux opérations LDAP :
+##   - BindRequest / BindResponse (anonyme)
+##   - SearchRequest / SearchResultEntry / SearchResultDone
 ## Référence : RFC 4511.
 
 import std/[asyncnet, asyncdispatch, net, json]
+import ./ldap_search
+
+export ldap_search  # Réexporte les procs de ldap_search
 
 const
   TagSequence = 0x30'u8
@@ -135,9 +137,15 @@ proc tryAnonymousBind*(target: string, port: int): Future[string] {.async.} =
     socket.close()
 
 proc queryLdap*(target: string, port: int, baseDn: string, filter: string,
-                attributes: seq[string]): JsonNode =
-  ## TODO (phase 2) : encodage BER du SearchRequest + décodage des
-  ## SearchResultEntry. Nécessite un parseur de filtre LDAP
-  ## ((&(objectClass=user)...)) vers sa forme BER — je m'en occupe
-  ## dans un prochain message dédié.
-  result = newJArray()
+                attributes: seq[string]): Future[seq[JsonNode]] {.async.} =
+  ## Effectue une requête LDAP SearchRequest via ldap_search.nim.
+  ## Retourne un array d'objets JSON contenant les résultats.
+  ##
+  ## Exemples :
+  ##   let users = await queryLdap(target, 389, "DC=domain,DC=local",
+  ##                                "(objectClass=user)", @["sAMAccountName", "mail"])
+  ##   let spns = await queryLdap(target, 389, "DC=domain,DC=local",
+  ##                               "(&(objectClass=user)(servicePrincipalName=*))",
+  ##                               @["sAMAccountName", "servicePrincipalName"])
+  
+  return await ldapSearchAsync(target, port, baseDn, filter, attributes)
