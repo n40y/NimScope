@@ -72,21 +72,30 @@ proc berNull(): seq[byte] =
 # ==================== PARSER FILTRE LDAP ====================
 
 type
+  FilterKind = enum
+    fkEqual = "equal"
+    fkPresent = "present"
+    fkSubstring = "substring"
+    fkAnd = "and"
+    fkOr = "or"
+    fkNot = "not"
+    fkError = "error"
+
   FilterNode = object
-    case kind: string
-    of "and", "or", "not":
+    case kind: FilterKind
+    of fkAnd, fkOr, fkNot:
       children: seq[FilterNode]
-    of "equal":
+    of fkEqual:
       attr: string
       value: string
-    of "present":
+    of fkPresent:
       attr: string
-    of "substring":
+    of fkSubstring:
       attr: string
       initial: string
       any: seq[string]
       final: string
-    else:
+    of fkError:
       discard
 
 proc parseFilter(filter: string): FilterNode =
@@ -102,7 +111,7 @@ proc parseFilter(filter: string): FilterNode =
   let s = filter.strip()
   
   if not s.startsWith("(") or not s.endsWith(")"):
-    return FilterNode(kind: "error")
+    return FilterNode(kind: fkError)
   
   let inner = s[1 ..< s.len - 1]
   
@@ -125,7 +134,7 @@ proc parseFilter(filter: string): FilterNode =
           current = ""
       else:
         current &= c
-    return FilterNode(kind: "and", children: children)
+    return FilterNode(kind: fkAnd, children: children)
   
   elif inner.startsWith("|"):
     var children: seq[FilterNode] = @[]
@@ -145,23 +154,23 @@ proc parseFilter(filter: string): FilterNode =
           current = ""
       else:
         current &= c
-    return FilterNode(kind: "or", children: children)
+    return FilterNode(kind: fkOr, children: children)
   
   elif inner.startsWith("!"):
     let subfilter = inner[1 ..< inner.len].strip()
-    return FilterNode(kind: "not", children: @[parseFilter(subfilter)])
+    return FilterNode(kind: fkNot, children: @[parseFilter(subfilter)])
   
   # Cas : (attr op value)
   elif "=" in inner:
     let parts = inner.split('=', 1)
     if parts.len != 2:
-      return FilterNode(kind: "error")
+      return FilterNode(kind: fkError)
     
     let attr = parts[0].strip()
     let value = parts[1].strip()
     
     if value == "*":
-      return FilterNode(kind: "present", attr: attr)
+      return FilterNode(kind: fkPresent, attr: attr)
     elif "*" in value:
       # Substring
       let subparts = value.split('*')
@@ -172,43 +181,43 @@ proc parseFilter(filter: string): FilterNode =
         for i in 1 ..< subparts.len - 1:
           any.add(subparts[i])
       if subparts.len >= 2: final = subparts[^1]
-      return FilterNode(kind: "substring", attr: attr, initial: initial, any: any, final: final)
+      return FilterNode(kind: fkSubstring, attr: attr, initial: initial, any: any, final: final)
     else:
-      return FilterNode(kind: "equal", attr: attr, value: value)
+      return FilterNode(kind: fkEqual, attr: attr, value: value)
   
-  return FilterNode(kind: "error")
+  return FilterNode(kind: fkError)
 
 # ==================== ENCODEUR DE FILTRE ====================
 
 proc encodeFilter(node: FilterNode): seq[byte] =
   case node.kind
-  of "equal":
+  of fkEqual:
     let ava = berTLV(TagAttributeValueAssertion, 
                      berOctetString(node.attr) & berOctetString(node.value))
     berTLV(TagFilterEqual, ava)
   
-  of "present":
+  of fkPresent:
     berTLV(TagFilterPresent, cast[seq[byte]](node.attr))
   
-  of "and":
+  of fkAnd:
     var children: seq[byte] = @[]
     for child in node.children:
       children &= encodeFilter(child)
     berTLV(TagFilterAnd, children)
   
-  of "or":
+  of fkOr:
     var children: seq[byte] = @[]
     for child in node.children:
       children &= encodeFilter(child)
     berTLV(TagFilterOr, children)
   
-  of "not":
+  of fkNot:
     if node.children.len > 0:
       berTLV(TagFilterNot, encodeFilter(node.children[0]))
     else:
       @[]
   
-  of "substring":
+  of fkSubstring:
     # SimplifiedSubstringFilter = SEQUENCE { ... }
     var parts: seq[byte] = @[]
     parts &= berOctetString(node.attr)
@@ -224,7 +233,7 @@ proc encodeFilter(node: FilterNode): seq[byte] =
     parts &= berTLV(TagSet, subparts)
     berTLV(TagFilterSubstring, parts)
   
-  else:
+  of fkError:
     # error
     @[]
 
