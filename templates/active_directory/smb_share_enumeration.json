@@ -1,0 +1,15 @@
+{
+  "id": "smb-share-enumeration",
+  "info": {
+    "name": "SMB Share Enumeration",
+    "description": "Enumerates accessible SMB shares on the target (IPC$, C$, ADMIN$, NETLOGON, SYSVOL, etc.). Accessible administrative shares can lead to lateral movement and privilege escalation.",
+    "severity": "MEDIUM",
+    "author": "n40y"
+  },
+  "protocol": "smb",
+  "action": "enumerate-shares",
+  "port": 445,
+  "matchers": {
+    "status": "VULNERABLE"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "kerberos-spn-enumeration",
+  "info": {
+    "name": "Kerberos SPN Enumeration",
+    "description": "Enumerates Service Principal Names (SPNs) which are vulnerable to Kerberoasting attacks. SPN accounts can have their TGS tickets cracked offline.",
+    "severity": "HIGH",
+    "author": "n40y"
+  },
+  "protocol": "kerberos",
+  "action": "enumerate-spns",
+  "port": 88,
+  "matchers": {
+    "status": "VULNERABLE"
+  }
+}

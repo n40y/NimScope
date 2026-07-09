@@ -1,0 +1,15 @@
+{
+  "id": "kerberos-asrep-roasting",
+  "info": {
+    "name": "Kerberos AS-REP Roasting",
+    "description": "Detects user accounts with the DONT_REQUIRE_PREAUTH flag enabled. These accounts are vulnerable to AS-REP Roasting - their AS-REP response can be cracked offline without pre-authentication.",
+    "severity": "CRITICAL",
+    "author": "n40y"
+  },
+  "protocol": "kerberos",
+  "action": "enumerate-no-preauth",
+  "port": 88,
+  "matchers": {
+    "status": "VULNERABLE"
+  }
+}
