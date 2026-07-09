@@ -1,19 +1,7 @@
 # src/core/loader.nim
 
-import std/[os, json]
-
-type
-  TemplateInfo* = object
-    name*: string
-    description*: string
-    severity*: string
-
-  Template* = object
-    id*: string
-    protocol*: string
-    port*: int
-    action*: string
-    info*: TemplateInfo
+import std/[os, json, strutils]
+import ./types # Importation des types centralisés
 
 proc discoverTemplates*(dir: string): seq[string] =
   result = @[]
