@@ -8,7 +8,7 @@
 ##     (matchers, actions multiples, options par protocole)
 ##   - séparer clairement config / résultat / template
 
-import std/[json, times, options, tables, enums]
+import std/[json, times, options, tables, strutils]
 
 # ==================== ENUMS ====================
 
