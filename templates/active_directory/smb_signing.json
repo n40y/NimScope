@@ -8,5 +8,5 @@
   },
   "protocol": "smb",
   "action": "check-signing",
-  "port": 445
+  "port": 4445
 }
