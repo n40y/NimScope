@@ -8,8 +8,8 @@
 import std/[asyncdispatch, strutils, json, tables, httpclient]
 import ./types, ./logger
 import ../protocols/ldap
-import ../protocols/smb
-# import ../protocols/kerberos  # à activer une fois le module réécrit en pur Nim
+import ../protocols/ad/smb
+import ../protocols/ad/kerberos
 
 type
   AsyncProtocolHandler = proc(tmp: Template, target: string, cfg: AdConfig): Future[AuditResult] {.gcsafe.}
@@ -33,7 +33,7 @@ proc runLdap(tmp: Template, target: string, cfg: AdConfig): Future[AuditResult] 
 
   case tmp.action
   of "anonymous-bind":
-    let bindStatus = toStatus(tryAnonymousBind(target, port))
+    let bindStatus = toStatus(await tryAnonymousBind(target, port))
     res.status = bindStatus
     if bindStatus == stSuccess:
       res.message = "[" & tmp.id & "] " & tmp.info.name & " - VULNERABILITY CONFIRMED!"
@@ -54,11 +54,14 @@ proc runLdap(tmp: Template, target: string, cfg: AdConfig): Future[AuditResult] 
       filter = "(&(objectClass=user)(|(description=*pass*)(description=*password*)(description=*pwd*)))"
     else: discard
 
-    let data = queryLdap(target, port, baseDn, filter, attrs)
+    let data = await queryLdap(target, port, baseDn, filter, attrs)
 
     if data.len > 0:
       res.status = stVulnerable
-      res.details = data
+      var jsonArray = newJArray()
+      for entry in data:
+        jsonArray.add(entry)
+      res.details = jsonArray
       res.message = "[" & tmp.id & "] " & tmp.info.name & " - Looted " & $data.len & " entries!"
       logSuccess(target, res.message)
       if cfg.output.verbose:
@@ -82,10 +85,11 @@ proc runSmb(tmp: Template, target: string, cfg: AdConfig): Future[AuditResult] {
   var res = newAuditResult(target, tmp.id, protoSmb, tmp.action)
   res.severity = parseSeverity(tmp.info.severity)
 
-  if tmp.action == "check-signing":
+  case tmp.action
+  of "check-signing":
     let port = if tmp.port != 0: tmp.port else: cfg.ad_ports.smb
-    let signingStatus = checkSmbSigning(target, port)   # string brut ("NOT_REQUIRED", "REQUIRED", ...)
-    let osVer = getRemoteOsVersion(target)
+    let (signingStatus, dialect) = checkSmbSigning(target, port)
+    let osVer = guessOsFromDialect(dialect)
     res.osVersion = osVer
 
     case signingStatus
@@ -101,9 +105,94 @@ proc runSmb(tmp: Template, target: string, cfg: AdConfig): Future[AuditResult] {
       res.status = stError
       res.message = "[" & tmp.id & "] unable to verify (" & signingStatus & ") - OS: " & osVer
       if cfg.output.verbose: logFail(target, res.message)
+
+  of "enumerate-shares":
+    let port = if tmp.port != 0: tmp.port else: cfg.ad_ports.smb
+    let sharesData = await enumerateSmbSharesAsync(target, port)
+    
+    if sharesData.hasKey("shares"):
+      let shares = sharesData["shares"]
+      var accessibleCount = 0
+      for share in shares:
+        if share.hasKey("accessible") and share["accessible"].getBool():
+          inc accessibleCount
+      
+      if accessibleCount > 0:
+        res.status = stVulnerable
+        res.details = sharesData
+        res.message = "[" & tmp.id & "] " & tmp.info.name & " - Found " & $accessibleCount & " accessible shares!"
+        logSuccess(target, res.message)
+      else:
+        res.status = stFailed
+        res.message = "[" & tmp.id & "] No accessible shares found"
+        if cfg.output.verbose: logFail(target, res.message)
+    else:
+      res.status = stError
+      res.message = "[" & tmp.id & "] Unable to enumerate shares"
+      logError(res.message)
+
   else:
     res.status = stError
     res.message = "Action SMB inconnue : " & tmp.action
+    logError(res.message)
+
+  return res
+
+# ==================== HANDLER: KERBEROS ====================
+
+proc runKerberos(tmp: Template, target: string, cfg: AdConfig): Future[AuditResult] {.async.} =
+  var res = newAuditResult(target, tmp.id, protoKerberos, tmp.action)
+  res.severity = parseSeverity(tmp.info.severity)
+
+  let port = if tmp.port != 0: tmp.port else: cfg.ad_ports.kerberos
+  let realm = getKerberosRealm(target)
+
+  case tmp.action
+  of "enumerate-spns":
+    # Énumère les utilisateurs avec SPNs (vulnérables au Kerberoasting)
+    let baseDn = cfg.ldap_queries.base_dn
+    let spnUsers = await enumerateSpns(target, cfg.ad_ports.ldap, baseDn)
+    
+    if spnUsers.len > 0:
+      res.status = stVulnerable
+      var jsonArray = newJArray()
+      for entry in spnUsers:
+        jsonArray.add(entry)
+      res.details = jsonArray
+      res.message = "[" & tmp.id & "] " & tmp.info.name & " - Found " & $spnUsers.len & " accounts vulnerable to Kerberoasting!"
+      logSuccess(target, res.message)
+      if cfg.output.verbose:
+        for entry in spnUsers:
+          logInfo("SPN User:\n" & entry.pretty())
+    else:
+      res.status = stFailed
+      res.message = "[" & tmp.id & "] No SPN users found"
+      if cfg.output.verbose: logFail(target, res.message)
+
+  of "enumerate-no-preauth":
+    # Énumère les utilisateurs sans pré-auth (vulnérables à AS-REP Roasting)
+    let baseDn = cfg.ldap_queries.base_dn
+    let noPreAuthUsers = await enumerateNoPreAuthUsers(target, cfg.ad_ports.ldap, baseDn)
+    
+    if noPreAuthUsers.len > 0:
+      res.status = stVulnerable
+      var jsonArray = newJArray()
+      for entry in noPreAuthUsers:
+        jsonArray.add(entry)
+      res.details = jsonArray
+      res.message = "[" & tmp.id & "] " & tmp.info.name & " - Found " & $noPreAuthUsers.len & " accounts vulnerable to AS-REP Roasting!"
+      logSuccess(target, res.message)
+      if cfg.output.verbose:
+        for entry in noPreAuthUsers:
+          logInfo("No-PreAuth User:\n" & entry.pretty())
+    else:
+      res.status = stFailed
+      res.message = "[" & tmp.id & "] No users without pre-auth found"
+      if cfg.output.verbose: logFail(target, res.message)
+
+  else:
+    res.status = stError
+    res.message = "Action Kerberos inconnue : " & tmp.action
     logError(res.message)
 
   return res
@@ -147,8 +236,8 @@ proc runHttp(tmp: Template, target: string, cfg: AdConfig): Future[AuditResult] 
 let handlers = {
   protoLdap: runLdap,
   protoSmb: runSmb,
+  protoKerberos: runKerberos,
   protoHttp: runHttp,
-  # protoKerberos: runKerberos,  # à ajouter quand le module sera portable
 }.toTable
 
 proc runTemplateAsync*(tmp: Template, target: string, cfg: AdConfig): Future[AuditResult] {.async.} =
