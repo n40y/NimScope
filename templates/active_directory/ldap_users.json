@@ -1,0 +1,12 @@
+{
+  "id": "ldap-enum-users",
+  "info": {
+    "name": "LDAP User Enumeration via Null Session",
+    "description": "Attempts to enumerate domain users without authentication.",
+    "severity": "HIGH",
+    "author": "n40y"
+  },
+  "protocol": "ldap",
+  "action": "query-users",
+  "port": 389
+}
