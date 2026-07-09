@@ -1,5 +1,15 @@
 # src/protocols/ad/smb.nim
-import std/[net, endians]
+##
+## Module SMB pour audits Active Directory.
+## Contient :
+##   - Détection du SMB signing (check-signing)
+##   - Énumération des partages (enumerate-shares via smb_shares.nim)
+##   - Estimation de l'OS via le dialecte SMB
+
+import std/[net, endians, json, asyncnet, asyncdispatch]
+import ./smb_shares
+
+export smb_shares  # Réexporte les procs de smb_shares
 
 # Packet de négociation SMB2 pour détecter le signing
 const smbNegotiatePacket: array[90, byte] = [
@@ -23,11 +33,16 @@ const
   OffsetSecurityMode = 66
   OffsetDialectRevision = 68
 
-# ==================== SMB SIGNING ====================
+# ==================== SMB SIGNING CHECK ====================
 
 proc checkSmbSigning*(target: string, port: int = 445): tuple[signing: string, dialect: uint16] =
   ## Vérifie si le SMB signing est requis, et retourne aussi le dialecte
-  ## négocié (utile pour estimer la version d'OS sans API Windows).
+  ## négocié (utile pour estimer la version d'OS).
+  ## 
+  ## Retourne un tuple (signing_status, dialect_code) où :
+  ##   - signing_status : "REQUIRED", "NOT_REQUIRED", "PORT_CLOSED", "NETWORK_ERROR", "INVALID_RESPONSE"
+  ##   - dialect_code : 0x0202, 0x0210, 0x0300, 0x0302, 0x0311, etc.
+  
   var socket = newSocket()
   try:
     socket.connect(target, Port(port), timeout = 2500)
@@ -56,12 +71,21 @@ proc checkSmbSigning*(target: string, port: int = 445): tuple[signing: string, d
     if socket != nil: socket.close()
     return ("NETWORK_ERROR", 0'u16)
 
+# ==================== ENUMERATION DE PARTAGES ====================
+
+proc enumerateSmbSharesAsync*(target: string, port: int = 445): Future[JsonNode] {.async.} =
+  ## Énumère les partages SMB accessibles.
+  ## Retourne un JSON { "shares": [ { "name": "IPC$", "accessible": true }, ... ] }
+  ##
+  ## Utilise smb_shares.enumerateSmbShares en mode asynchrone.
+  return await enumerateSmbShares(target, port)
+
 # ==================== ESTIMATION OS (pure Nim, sans NetAPI) ====================
 
 proc guessOsFromDialect*(dialect: uint16): string =
   ## Estimation approximative à partir du dialecte SMB2/3 négocié.
-  ## Moins précis qu'un vrai fingerprint (ex: via NetServerGetInfo côté
-  ## Windows), mais portable et suffisant pour un rapport d'audit.
+  ## Moins précis qu'un vrai fingerprint, mais portable et suffisant
+  ## pour un rapport d'audit.
   case dialect
   of 0x0202: "Windows Vista SP1 / Server 2008 (SMB 2.0.2)"
   of 0x0210: "Windows 7 / Server 2008 R2 (SMB 2.1)"
@@ -69,3 +93,12 @@ proc guessOsFromDialect*(dialect: uint16): string =
   of 0x0302: "Windows 8.1 / Server 2012 R2 (SMB 3.0.2)"
   of 0x0311: "Windows 10 / Server 2016+ (SMB 3.1.1)"
   else: "Inconnu (dialecte 0x" & dialect.toHex(4) & ")"
+
+# ==================== WRAPPER COMPATIBILITÉ ====================
+
+# Pour garder la compatibilité avec executor.nim qui appelle getRemoteOsVersion()
+proc getRemoteOsVersion*(target: string, port: int = 445): string =
+  ## Wrapper pour estimer l'OS sans appel async.
+  ## Utile pour executor.nim qui n'est pas async dans smb.nim.
+  let (_, dialect) = checkSmbSigning(target, port)
+  return guessOsFromDialect(dialect)
