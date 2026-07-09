@@ -1,29 +1,43 @@
 # src/core/config_loader.nim
 
-import std/json
-import loader 
+import std/[json, os]
+import ./types
 
-type
-  AdPorts* = object
-    ldap*: int
-    smb*: int
-    kerberos*: int
-
-  LdapQueries* = object
-    base_dn*: string
-
-  AdConfig* = object
-    ad_ports*: AdPorts
-    ldap_queries*: LdapQueries
+proc getDefaultConfig*(): AdConfig =
+  ## Configuration par défaut
+  result = AdConfig(
+    ad_ports: AdPorts(
+      ldap: 389,
+      ldaps: 636,
+      smb: 445,
+      kerberos: 88,
+      winrm: 5985
+    ),
+    ldap_queries: LdapQueries(
+      base_dn: "DC=domain,DC=local"
+    ),
+    output: OutputConfig(
+      format: "text",
+      path: "reports/",
+      verbose: true,
+      includeRemediation: true
+    ),
+    timeouts: TimeoutConfig(
+      connection: 3000,
+      read: 5000
+    )
+  )
 
 proc loadAdConfig*(path: string = "config/ad_defaults.json"): AdConfig =
+  ## Charge la configuration avec fallback
   try:
+    if not fileExists(path):
+      echo "[!] Config file not found : " & path
+      return getDefaultConfig()
+    
     let jsonNode = parseFile(path)
     result = to(jsonNode, AdConfig)
+    
   except CatchableError as e:
-    echo "[!] Error loading global configuration file: " & e.msg
-    # Fallback default values
-    result = AdConfig(
-      ad_ports: AdPorts(ldap: 389, smb: 445, kerberos: 88),
-      ldap_queries: LdapQueries(base_dn: "DC=domain,DC=local")
-    )
+    echo "[!] Error loading configuration : " & e.msg
+    result = getDefaultConfig()
