@@ -1,6 +1,6 @@
 # src/core/logger.nim
 
-import std/times
+import std/[times, terminal]
 
 proc getTimestamp(): string =
   now().format("HH:mm:ss")
