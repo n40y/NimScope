@@ -1,4 +1,5 @@
 # src/core/reporter.nim
+
 import std/[json, os, times, strutils]
 import ./types, ./logger
 
@@ -26,8 +27,6 @@ proc printConsoleSummary*(results: seq[AuditResult]) =
   var vulnerableCount = 0
 
   for r in results:
-    # BUG corrigé : r.status est un AuditStatus (enum), pas un string.
-    # La comparaison directe à "SUCCESS"/"VULNERABLE" ne compilait pas.
     if r.status == stSuccess or r.status == stVulnerable:
       successCount += 1
       if r.status == stVulnerable:
