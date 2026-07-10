@@ -176,7 +176,7 @@ proc buildSmb2TreeConnect(target: string, sessionId: uint64, path: string): seq[
   result[pos] = 0
   pos += 4
   
-  # SMB2 Header (sessionId, pas de treeId encore)
+  # SMB2 Header
   let header = buildSmb2Header(SMB2_TREE_CONNECT, sessionId=sessionId)
   result[pos ..< pos + 64] = header
   pos += 64
@@ -189,12 +189,15 @@ proc buildSmb2TreeConnect(target: string, sessionId: uint64, path: string): seq[
   pos += 2
   
   # PathOffset (2 octets)
-  result[pos] = byte(pos + 4)  # pathOffset pointe juste après
+  let pathOffset = uint16(pos + 4)   # offset après les headers
+  result[pos] = byte(pathOffset and 0xFF)
+  result[pos+1] = byte(pathOffset shr 8)
   pos += 2
   
   # PathLength
   let pathBytes = packString16(path)
-  littleEndian16(addr result[pos], addr uint16(pathBytes.len))
+  var pathLen: uint16 = uint16(pathBytes.len)
+  littleEndian16(addr result[pos], addr pathLen)
   pos += 2
   
   # Buffer (le path)
@@ -308,59 +311,3 @@ proc enumerateSmbShares*(target: string, port: int = 445): Future[JsonNode] {.as
   result["shares"] = shares
   return result
 
-# ==================== API DE COMPATIBILITÉ (wrapper pour executor) ====================
-
-proc checkSmbSigning*(target: string, port: int = 445): tuple[signing: string, dialect: uint16] =
-  ## Détection du SMB signing (existant, on le garde pour compatibilité).
-  const smbNegotiatePacket: array[90, byte] = [
-    byte 0x00, 0x00, 0x00, 0x56, 0xFE, 0x53, 0x4D, 0x42,
-    0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x24, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00,
-    0x7F, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04,
-    0x05, 0x06, 0x07, 0x08, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x02, 0x02, 0x00, 0x00, 0x00, 0x00
-  ]
-  
-  const OffsetSecurityMode = 66
-  const OffsetDialectRevision = 68
-  
-  var socket = newSocket()
-  try:
-    socket.connect(target, Port(port), timeout = 2500)
-  except CatchableError:
-    return ("PORT_CLOSED", 0'u16)
-  
-  try:
-    discard socket.send(addr smbNegotiatePacket[0], smbNegotiatePacket.len)
-    
-    var response: array[1024, byte]
-    let bytesReceived = socket.recv(addr response[0], 1024)
-    socket.close()
-    
-    if bytesReceived < OffsetDialectRevision + 2:
-      return ("INVALID_RESPONSE", 0'u16)
-    
-    let securityMode = response[OffsetSecurityMode]
-    var dialect: uint16
-    littleEndian16(addr dialect, addr response[OffsetDialectRevision])
-    
-    let signing = if (securityMode and 0x02) == 0x02: "REQUIRED" else: "NOT_REQUIRED"
-    return (signing, dialect)
-  except CatchableError:
-    if socket != nil: socket.close()
-    return ("NETWORK_ERROR", 0'u16)
-
-proc guessOsFromDialect*(dialect: uint16): string =
-  ## Estimation OS depuis le dialecte SMB (existant, on le garde).
-  case dialect
-  of 0x0202: "Windows Vista SP1 / Server 2008 (SMB 2.0.2)"
-  of 0x0210: "Windows 7 / Server 2008 R2 (SMB 2.1)"
-  of 0x0300: "Windows 8 / Server 2012 (SMB 3.0)"
-  of 0x0302: "Windows 8.1 / Server 2012 R2 (SMB 3.0.2)"
-  of 0x0311: "Windows 10 / Server 2016+ (SMB 3.1.1)"
-  else: "Unknown (dialect 0x" & dialect.toHex(4) & ")"
