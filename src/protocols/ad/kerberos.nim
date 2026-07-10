@@ -7,7 +7,7 @@
 ##
 ## Référence : RFC 4120, MS-KILE
 
-import std/[net, json, asyncnet, asyncdispatch, strutils, sequtils]
+import std/[net, json, asyncnet, asyncdispatch, strutils, sequtils, options]
 import ./ldap
 
 # ==================== CONSTANTES KERBEROS ====================
@@ -47,6 +47,7 @@ const
   # User Account Control flags
   UF_DONT_REQUIRE_PREAUTH = 0x00400000'u32
 
+
 # ==================== HELPERS BER ====================
 
 proc berLength(n: int): seq[byte] =
@@ -60,8 +61,10 @@ proc berLength(n: int): seq[byte] =
       v = v shr 8
     result = @[byte(0x80 or bytes.len)] & bytes
 
+
 proc berTLV(tag: byte, content: seq[byte]): seq[byte] =
   @[tag] & berLength(content.len) & content
+
 
 proc berInteger(n: int): seq[byte] =
   if n == 0:
@@ -76,8 +79,10 @@ proc berInteger(n: int): seq[byte] =
       bytes.insert(0'u8, 0)
     berTLV(TagInteger, bytes)
 
+
 proc berOctetString(s: string): seq[byte] =
   berTLV(TagOctetString, cast[seq[byte]](s))
+
 
 # ==================== AS-REP ROASTING DETECTION ====================
 
@@ -117,6 +122,7 @@ proc buildAsReq*(realm: string, username: string): seq[byte] =
   # Top-level AS-REQ [APPLICATION 10]
   result = berTLV(0x6A'u8, reqBody)  # [APPLICATION 10]
 
+
 proc parseAsRepError*(response: seq[byte]): tuple[hasError: bool, errorCode: int, message: string] =
   ## Parse une réponse KRB-ERROR pour extraire le code d'erreur.
   ## Retourne (hasError, errorCode, message).
@@ -152,51 +158,48 @@ proc parseAsRepError*(response: seq[byte]): tuple[hasError: bool, errorCode: int
   
   return (true, errorCode, "")
 
+
 proc checkAsRepRoasting*(target: string, realm: string, username: string, 
                          port: int = 88): Future[tuple[vulnerable: bool, message: string]] {.async.} =
-  ## Teste si un utilisateur est vulnérable à AS-REP Roasting.
-  ## Retourne (vulnerable, message) où vulnerable=true si l'utilisateur n'a pas besoin de pré-auth.
+  ## Version stable et simple pour AS-REP Roasting
   
   let socket = newAsyncSocket()
   try:
+    # Connexion
     await socket.connect(target, Port(port))
     
-    # Construire une AS-REQ sans pré-auth
+    # Envoi de la requête
     let asReq = buildAsReq(realm, username)
     await socket.send(cast[pointer](unsafeAddr asReq[0]), asReq.len)
     
-    # Attendre une réponse (avec timeout)
-    socket.setSockOpt(OptReadTimeout, 3000)
+    # Réception (sans timeout compliqué pour l'instant)
     let response = await socket.recv(4096)
     
     if response.len == 0:
       return (false, "No response from KDC")
     
-    # Parser la réponse
+    # Conversion en bytes
     var respBytes = newSeq[byte](response.len)
     for i, c in response:
       respBytes[i] = byte(c)
     
+    # Analyse
     let (hasError, errorCode, _) = parseAsRepError(respBytes)
     
     if hasError:
-      if errorCode == 16:  # KDC_ERR_PREAUTH_REQUIRED
-        return (false, "User requires pre-auth (protected)")
-      elif errorCode == 25:  # KDC_ERR_PREAUTH_FAILED
-        return (false, "Pre-auth failed")
+      if errorCode == 16:
+        return (false, "User requires pre-auth (protected against AS-REP Roasting)")
       else:
-        return (false, "KDC error: " & $errorCode)
+        return (false, "KDC returned error code: " & $errorCode)
     
-    # Si pas d'erreur, on reçoit probablement une AS-REP
-    # (l'utilisateur est sans pré-auth)
-    return (true, "User is vulnerable to AS-REP Roasting (no pre-auth required)")
+    # Succès = vulnérable
+    return (true, "VULNERABLE - User has no pre-auth required (AS-REP Roasting possible)")
   
-  except TimeoutError:
-    return (false, "KDC timeout")
   except CatchableError as e:
     return (false, "Connection error: " & e.msg)
   finally:
     socket.close()
+
 
 # ==================== SPN ENUMERATION (via LDAP) ====================
 
@@ -229,6 +232,7 @@ proc enumerateSpns*(target: string, ldapPort: int = 389,
     if entry.hasKey("sAMAccountName") and entry.hasKey("servicePrincipalName"):
       result.add(entry)
 
+
 # ==================== DETECTION USERS SANS PRE-AUTH ====================
 
 proc enumerateNoPreAuthUsers*(target: string, ldapPort: int = 389,
@@ -256,6 +260,7 @@ proc enumerateNoPreAuthUsers*(target: string, ldapPort: int = 389,
     if entry.hasKey("sAMAccountName"):
       result.add(entry)
 
+
 # ==================== API WRAPPER ====================
 
 proc checkKerberosService*(target: string, port: int = 88): bool =
@@ -267,6 +272,7 @@ proc checkKerberosService*(target: string, port: int = 88): bool =
     return true
   except CatchableError:
     return false
+
 
 proc getKerberosRealm*(domainName: string): string =
   ## Déduit le realm Kerberos depuis un domain name.
