@@ -89,7 +89,12 @@ proc runSmb(tmp: Template, target: string, cfg: AdConfig): Future[AuditResult] {
   of "check-signing":
     let port = if tmp.port != 0: tmp.port else: cfg.ad_ports.smb
     let (signingStatus, dialect) = checkSmbSigning(target, port)
-    let osVer = guessOsFromDialect(dialect)
+
+    # On ne construit le fragment "OS: ..." que si on a réellement reçu
+    # une réponse exploitable (dialect != 0). Sinon "OS: Unknown (dialect 0x0000)"
+    # n'apporte rien et pollue le message pour rien.
+    let hasValidResponse = signingStatus in ["NOT_REQUIRED", "REQUIRED"]
+    let osVer = if hasValidResponse: guessOsFromDialect(dialect) else: ""
     res.osVersion = osVer
 
     case signingStatus
@@ -103,7 +108,7 @@ proc runSmb(tmp: Template, target: string, cfg: AdConfig): Future[AuditResult] {
       if cfg.output.verbose: logFail(target, res.message)
     else:
       res.status = stError
-      res.message = "[" & tmp.id & "] unable to verify (" & signingStatus & ") - OS: " & osVer
+      res.message = "[" & tmp.id & "] unable to verify (" & signingStatus & ")"
       if cfg.output.verbose: logFail(target, res.message)
 
   of "enumerate-shares":
