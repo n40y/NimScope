@@ -6,7 +6,7 @@
 ##   - Énumération des partages (enumerate-shares via smb_shares.nim)
 ##   - Estimation de l'OS via le dialecte SMB
 
-import std/[net, endians, json, asyncnet, asyncdispatch]
+import std/[net, endians, json, asyncnet, asyncdispatch, strutils]
 import ./smb_shares
 
 export smb_shares  # Réexporte les procs de smb_shares
